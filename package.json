@@ -26,7 +26,7 @@
   },
   "homepage": "https://github.com/Nova1390/sift",
   "bin": {
-    "sift": "./bin/sift.js"
+    "sift": "bin/sift.js"
   },
   "engines": {
     "node": ">=20"
