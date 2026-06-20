@@ -1,5 +1,5 @@
 {
-  "name": "@nova1390/sift",
+  "name": "@rodabuilds/sift",
   "version": "0.1.0",
   "description": "Local-first CLI to index and search Claude Code, Codex, and Cursor chat history.",
   "type": "module",

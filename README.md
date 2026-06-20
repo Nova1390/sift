@@ -20,7 +20,19 @@ Claude Code, Codex, and Cursor all store useful coding-assistant history locally
 
 ## Install
 
+Install from npm:
+
 ```sh
+npm install -g @rodabuilds/sift
+sift index
+sift "your query"
+```
+
+Or install from source:
+
+```sh
+git clone https://github.com/Nova1390/sift.git
+cd sift
 npm install
 npm link
 ```
