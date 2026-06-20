@@ -1,0 +1,20 @@
+{
+  "name": "@nova1390/sift",
+  "version": "0.1.0",
+  "description": "Local-first CLI search for Claude Code and Codex session logs.",
+  "type": "module",
+  "bin": {
+    "sift": "./bin/sift.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node ./bin/sift.js",
+    "index": "node ./bin/sift.js index"
+  },
+  "dependencies": {
+    "minisearch": "^7.1.2"
+  },
+  "license": "MIT"
+}
