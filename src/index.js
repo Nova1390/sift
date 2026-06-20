@@ -58,6 +58,10 @@ export function buildIndex() {
     records.push(...parsed);
   }
 
+  if (uniqueCursorFiles.length && stats.cursor.messages === 0) {
+    warnings.push(`Cursor: found ${uniqueCursorFiles.length} db(s) but 0 messages extracted`);
+  }
+
   const searchableRecords = records.map((record) => ({
     ...record,
     excerpt: shortExcerpt(record.text)

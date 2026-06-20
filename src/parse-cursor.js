@@ -105,15 +105,17 @@ function extractCursorMessages(root) {
 }
 
 function normalizeCursorMessage(value) {
-  const role = normalizeRole(value.role ?? value.speaker ?? value.author ?? value.type);
+  const role = cursorRoleFromType(value.type) ?? normalizeRole(value.role ?? value.speaker ?? value.author);
   const text = extractCursorText(value);
-  if (!role || !text) return null;
+  if (role && text) {
+    return {
+      role,
+      text,
+      ts: value.timestamp ?? value.createdAt ?? value.lastUpdatedAt ?? value.unixMs ?? value.time ?? value.date
+    };
+  }
 
-  return {
-    role,
-    text,
-    ts: value.timestamp ?? value.createdAt ?? value.lastUpdatedAt ?? value.time ?? value.date
-  };
+  return null;
 }
 
 function extractCursorText(value) {
@@ -136,6 +138,12 @@ function extractCursorText(value) {
   }
 
   return '';
+}
+
+function cursorRoleFromType(value) {
+  if (value === 1) return 'user';
+  if (value === 2) return 'assistant';
+  return null;
 }
 
 function normalizeRole(value) {
@@ -163,6 +171,9 @@ function decodeValue(value) {
 }
 
 function cursorSession(file, key, value) {
+  const bubbleMatch = key.match(/^bubbleId:([^:]+):/);
+  if (bubbleMatch) return `${file}#${bubbleMatch[1]}`;
+
   const id = value?.composerId ?? value?.conversationId ?? value?.chatId ?? key;
   return `${file}#${id}`;
 }

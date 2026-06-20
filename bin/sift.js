@@ -48,11 +48,11 @@ function runIndex() {
     fail(`Could not build the index: ${error.message}`);
   }
 
-  const totalMessages = result.stats.claude.messages + result.stats.codex.messages;
+  const totalMessages = result.stats.claude.messages + result.stats.codex.messages + result.stats.cursor.messages;
 
   if (totalMessages === 0) {
-    console.log('No Claude Code or Codex messages found.');
-    console.log('Checked ~/.claude/projects, ~/.codex/sessions, and ~/.codex/archived_sessions.');
+    console.log('No Claude Code, Codex, or Cursor messages found.');
+    console.log('Checked ~/.claude/projects, ~/.codex/sessions, ~/.codex/archived_sessions, and Cursor user storage.');
     return;
   }
 
