@@ -1,0 +1,5 @@
+.claude/
+.sift/
+coverage/
+*.log
+.DS_Store

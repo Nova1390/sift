@@ -1,8 +1,30 @@
 {
   "name": "@nova1390/sift",
   "version": "0.1.0",
-  "description": "Local-first CLI search for Claude Code and Codex session logs.",
+  "description": "Local-first CLI to index and search Claude Code, Codex, and Cursor chat history.",
   "type": "module",
+  "author": "Rocco (@rodabuilds)",
+  "keywords": [
+    "cli",
+    "local-first",
+    "claude-code",
+    "codex",
+    "cursor",
+    "ai",
+    "search",
+    "full-text-search",
+    "developer-tools",
+    "privacy",
+    "offline"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nova1390/sift.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Nova1390/sift/issues"
+  },
+  "homepage": "https://github.com/Nova1390/sift",
   "bin": {
     "sift": "./bin/sift.js"
   },

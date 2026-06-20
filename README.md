@@ -1,21 +1,22 @@
 # sift
 
-`sift` is a local-first CLI for indexing and searching AI coding assistant chat/session logs from one place.
+Local-first CLI to search your Claude Code, Codex, and Cursor chat history from one place.
 
-Claude Code, Codex, and Cursor all store useful history on disk, but their built-in search is limited and siloed. `sift` builds one local full-text index over those tools so you can find past decisions, commands, debugging sessions, and notes without leaving your terminal.
+![MIT License](https://img.shields.io/badge/license-MIT-blue.svg) ![Node >=20](https://img.shields.io/badge/node-%3E%3D20-339933.svg) ![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-informational.svg) ![Local-first](https://img.shields.io/badge/local--first-yes-brightgreen.svg) ![Zero network](https://img.shields.io/badge/network-zero-lightgrey.svg)
 
-## Status
+## The Problem
 
-v1 is intentionally small and shippable:
+Claude Code, Codex, and Cursor all store useful coding-assistant history locally, but their built-in search is limited and separated by tool. `sift` builds one local full-text index so you can search across those histories from a single terminal command.
 
-- Claude Code JSONL logs under `~/.claude/projects/<project>/*.jsonl`
-- Codex JSONL logs under `~/.codex/sessions/**/*.jsonl`
-- Codex archived logs under `~/.codex/archived_sessions/*.jsonl`
-- Cursor SQLite state databases under Cursor's user storage directories
-- Commands: `index`, `search`, and `list`
-- Ranked full-text search with snippets
+## Features
 
-Out of scope for v1: GUI/web app, semantic search, embeddings, sync, telemetry, or any network calls.
+- Indexes Claude Code JSONL logs under `~/.claude/projects`.
+- Indexes Codex JSONL logs under `~/.codex/sessions` and `~/.codex/archived_sessions`.
+- Indexes Cursor SQLite `state.vscdb` databases from Cursor user storage, best-effort and read-only.
+- Ranked full-text search with highlighted snippets and local result times.
+- Filters with `--tool claude|codex|cursor` and `--limit N`.
+- 100% local, read-only for source logs/databases, zero network, zero telemetry.
+- No cloud dependencies.
 
 ## Install
 
@@ -30,7 +31,7 @@ Then run:
 sift --help
 ```
 
-You can also run without linking:
+Without linking:
 
 ```sh
 node ./bin/sift.js --help
@@ -38,70 +39,75 @@ node ./bin/sift.js --help
 
 ## Usage
 
-Build or rebuild the index:
+Build or rebuild the local index:
 
 ```sh
 sift index
 ```
 
-Search both tools:
+Search everything:
 
 ```sh
-sift search "recipe import bug"
+sift "recipe import bug"
 ```
 
-The query can also be the first argument:
+Filter by tool:
 
 ```sh
-sift "Graphify memory journal"
-```
-
-Filter by tool and limit results:
-
-```sh
-sift search "approval policy" --tool codex --limit 5
-sift search "hooks" --tool claude
-sift search "composer" --tool cursor
+sift "approval policy" --tool codex
+sift "italiano" --tool cursor
 ```
 
 List recent sessions:
 
 ```sh
 sift list
-sift list --tool codex --limit 20
-sift list --tool cursor
+```
+
+Example output:
+
+```txt
+[cursor · 2026-06-20 11:53] Sì, capisco l’italiano e posso risponderti in italiano senza problemi.
+/Users/you/Library/Application Support/Cursor/User/globalStorage/state.vscdb#db6394d1-a474-45ae-87b1-1d7c210585e2
+
+[codex · 2026-06-20 10:44] Built and pushed `sift` v1. Implemented the local-first Node CLI...
+/Users/you/.codex/sessions/2026/06/20/rollout-2026-06-20T08-46-33-019ee3c7.jsonl
 ```
 
 ## How It Works
 
-`sift index` scans the known local Claude Code, Codex, and Cursor log/database locations. Missing directories are skipped gracefully.
+`sift index` scans the known local storage locations for Claude Code, Codex, and Cursor. Missing directories are skipped gracefully.
 
-Claude Code and Codex JSONL lines are parsed independently, so malformed lines do not crash the whole run. Cursor databases are opened read-only with `better-sqlite3`; schema differences, locked databases, or missing Cursor installs produce warnings and are skipped without breaking Claude or Codex indexing.
+Claude Code and Codex JSONL files are parsed line by line. Malformed lines are skipped instead of failing the whole index run. Cursor databases are opened read-only with `better-sqlite3`; locked databases, missing schemas, or unsupported Cursor versions produce warnings and are skipped without breaking Claude/Codex indexing.
 
-`sift` extracts human-readable user and assistant text, normalizes it to:
+Human-readable user and assistant messages are normalized to:
 
 ```js
 { id, tool, session, project, role, ts, text }
 ```
 
-Then it builds a MiniSearch index over `text` and stores both the serialized index and normalized records at:
+The normalized records are indexed with MiniSearch. The serialized index and records are written to:
 
 ```sh
 ~/.sift/index.json
 ```
 
-`sift search` loads that local index, runs ranked full-text search with prefix and light fuzzy matching, and prints the best matches with one-line snippets and source JSONL paths.
+`sift search` loads that local index, runs ranked full-text search with prefix and light fuzzy matching, and prints the best matches with highlighted snippets, local date/time, and the source path.
 
 ## Privacy
 
-`sift` is 100% local and read-only with respect to your assistant logs.
+Privacy is the main constraint.
 
-- It only reads logs/databases from `~/.claude`, `~/.codex`, and Cursor's local storage.
-- It never writes to source logs.
-- It only writes its own index under `~/.sift/`.
-- It makes zero network requests.
-- It has no telemetry, sync, or remote services.
+- Only reads from `~/.claude`, `~/.codex`, and Cursor's local storage.
+- Never writes to source logs or Cursor databases.
+- Writes only its own index under `~/.sift/`.
+- Makes zero network requests.
+- Has no telemetry, sync, accounts, or remote services.
 
 ## Roadmap
 
-- v2: optional semantic search
+- v2: optional semantic search, still local.
+
+## License
+
+MIT
