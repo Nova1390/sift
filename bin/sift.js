@@ -4,16 +4,16 @@ import { buildIndex, loadIndex } from '../src/index.js';
 import { indexFile } from '../src/paths.js';
 import { formatResult, formatSession, listSessions, searchIndex } from '../src/search.js';
 
-const usage = `sift - local search for Claude Code and Codex session logs
+const usage = `sift - local search for Claude Code, Codex, and Cursor session logs
 
 Usage:
   sift index
-  sift search "<query>" [--tool claude|codex] [--limit N]
-  sift "<query>" [--tool claude|codex] [--limit N]
-  sift list [--tool claude|codex] [--limit N]
+  sift search "<query>" [--tool claude|codex|cursor] [--limit N]
+  sift "<query>" [--tool claude|codex|cursor] [--limit N]
+  sift list [--tool claude|codex|cursor] [--limit N]
 
 Privacy:
-  Reads local logs only. Writes only ${indexFile}. No network, no telemetry.`;
+  Reads local logs/databases only. Writes only ${indexFile}. No network, no telemetry.`;
 
 try {
   main();
@@ -59,8 +59,12 @@ function runIndex() {
   console.log('Indexed local logs:');
   printToolSummary('claude', result.stats.claude);
   printToolSummary('codex', result.stats.codex);
+  printToolSummary('cursor', result.stats.cursor);
   if (result.malformedCount) {
     console.log(`Skipped ${result.malformedCount} malformed JSONL line(s).`);
+  }
+  for (const warning of result.warnings ?? []) {
+    console.warn(`Warning: ${warning}`);
   }
   console.log(`Saved index to ${result.indexFile}`);
 }
@@ -125,8 +129,8 @@ function parseCli(args) {
     fail(error.message);
   }
 
-  if (parsed.values.tool && !['claude', 'codex'].includes(parsed.values.tool)) {
-    fail('--tool must be either claude or codex');
+  if (parsed.values.tool && !['claude', 'codex', 'cursor'].includes(parsed.values.tool)) {
+    fail('--tool must be claude, codex, or cursor');
   }
 
   const limit = parsed.values.limit === undefined ? 10 : Number.parseInt(parsed.values.limit, 10);
