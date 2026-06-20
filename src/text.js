@@ -18,6 +18,15 @@ export function datePart(ts) {
   return ts ? ts.slice(0, 10) : 'unknown';
 }
 
+export function dateTimePart(ts) {
+  if (!ts) return 'unknown';
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return 'unknown';
+
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export function extractTextContent(content) {
   if (typeof content === 'string') return compactText(content);
   if (!Array.isArray(content)) return '';

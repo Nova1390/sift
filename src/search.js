@@ -1,4 +1,4 @@
-import { datePart } from './text.js';
+import { dateTimePart } from './text.js';
 
 const ansi = {
   bold: '\u001b[1m',
@@ -55,14 +55,14 @@ export function listSessions(loaded, { tool, limit = 20 } = {}) {
 
 export function formatResult(result, query, useColor = process.stdout.isTTY) {
   const record = result.record;
-  const header = `[${record.tool} · ${datePart(record.ts)}]`;
+  const header = `[${record.tool} · ${dateTimePart(record.ts)}]`;
   const snippet = makeSnippet(record.text, query, useColor);
   const session = useColor ? `${ansi.dim}${record.session}${ansi.reset}` : record.session;
   return `${color(header, ansi.cyan, useColor)} ${snippet}\n${session}`;
 }
 
 export function formatSession(session, useColor = process.stdout.isTTY) {
-  const header = `[${session.tool} · ${datePart(session.ts)} · ${session.messages} messages]`;
+  const header = `[${session.tool} · ${dateTimePart(session.ts)} · ${session.messages} messages]`;
   const project = session.project ? ` ${session.project}` : '';
   const detail = useColor ? `${ansi.dim}${session.session}${ansi.reset}` : session.session;
   return `${color(header, ansi.cyan, useColor)}${project}\n${detail}`;
