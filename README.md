@@ -57,6 +57,12 @@ Build or rebuild the local index:
 sift index
 ```
 
+Force a full rebuild when parser behavior changes:
+
+```sh
+sift index --full
+```
+
 Search everything:
 
 ```sh
@@ -88,7 +94,7 @@ Example output:
 
 ## How It Works
 
-`sift index` scans the known local storage locations for Claude Code, Codex, and Cursor. Missing directories are skipped gracefully.
+`sift index` scans the known local storage locations for Claude Code, Codex, and Cursor. Missing directories are skipped gracefully. Repeated runs are incremental: unchanged Claude and Codex files are reused from the local file cache, while Cursor SQLite databases are re-read each time because their WAL files can change without updating the main database timestamp.
 
 Claude Code and Codex JSONL files are parsed line by line. Malformed lines are skipped instead of failing the whole index run. Cursor databases are opened read-only with `better-sqlite3`; locked databases, missing schemas, or unsupported Cursor versions produce warnings and are skipped without breaking Claude/Codex indexing.
 
@@ -98,7 +104,7 @@ Human-readable user and assistant messages are normalized to:
 { id, tool, session, project, role, ts, text }
 ```
 
-The normalized records are indexed with MiniSearch. The serialized index and records are written to:
+The normalized records are indexed with MiniSearch. The serialized search index and per-file record cache are written to:
 
 ```sh
 ~/.sift/index.json

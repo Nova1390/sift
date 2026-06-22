@@ -7,7 +7,7 @@ import { formatResult, formatSession, listSessions, searchIndex } from '../src/s
 const usage = `sift - local search for Claude Code, Codex, and Cursor session logs
 
 Usage:
-  sift index
+  sift index [--full]
   sift search "<query>" [--tool claude|codex|cursor] [--limit N]
   sift "<query>" [--tool claude|codex|cursor] [--limit N]
   sift list [--tool claude|codex|cursor] [--limit N]
@@ -30,7 +30,7 @@ function main() {
 
   const command = raw[0];
   if (command === 'index') {
-    runIndex();
+    runIndex(raw.slice(1));
   } else if (command === 'search') {
     runSearch(raw.slice(1));
   } else if (command === 'list') {
@@ -40,10 +40,11 @@ function main() {
   }
 }
 
-function runIndex() {
+function runIndex(args) {
+  const { full } = parseIndexCli(args);
   let result;
   try {
-    result = buildIndex();
+    result = buildIndex({ full });
   } catch (error) {
     fail(`Could not build the index: ${error.message}`);
   }
@@ -60,6 +61,7 @@ function runIndex() {
   printToolSummary('claude', result.stats.claude);
   printToolSummary('codex', result.stats.codex);
   printToolSummary('cursor', result.stats.cursor);
+  printFileSummary(result.cacheStats);
   if (result.malformedCount) {
     console.log(`Skipped ${result.malformedCount} malformed JSONL line(s).`);
   }
@@ -67,6 +69,24 @@ function runIndex() {
     console.warn(`Warning: ${warning}`);
   }
   console.log(`Saved index to ${result.indexFile}`);
+}
+
+function parseIndexCli(args) {
+  let parsed;
+  try {
+    parsed = parseArgs({
+      args,
+      allowPositionals: false,
+      options: {
+        full: { type: 'boolean' },
+        rebuild: { type: 'boolean' }
+      }
+    });
+  } catch (error) {
+    fail(error.message);
+  }
+
+  return { full: Boolean(parsed.values.full || parsed.values.rebuild) };
 }
 
 function runSearch(args) {
@@ -144,6 +164,21 @@ function parseCli(args) {
 
 function printToolSummary(tool, stats) {
   console.log(`  ${tool}: ${stats.sessions} sessions, ${stats.messages} messages`);
+}
+
+function printFileSummary(cacheStats) {
+  if (!cacheStats) return;
+  const reused = totalCacheCount(cacheStats.reused);
+  const parsed = totalCacheCount(cacheStats.parsed);
+  console.log(`  files: ${reused} reused, ${parsed} parsed (${formatCacheCounts(cacheStats.parsed)} parsed)`);
+}
+
+function totalCacheCount(counts = {}) {
+  return Object.values(counts).reduce((sum, count) => sum + count, 0);
+}
+
+function formatCacheCounts(counts = {}) {
+  return ['claude', 'codex', 'cursor'].map((tool) => `${tool} ${counts[tool] ?? 0}`).join(', ');
 }
 
 function fail(message) {
