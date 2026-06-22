@@ -49,6 +49,16 @@ Without linking:
 node ./bin/sift.js --help
 ```
 
+### Install as an agent skill
+
+Add sift to your coding agent (Claude Code, Codex, or Cursor) via the open skills CLI:
+
+```sh
+npx skills add Nova1390/sift
+```
+
+This installs the `sift-memory` skill so your agent can search your past sessions on its own, fully local.
+
 ## Usage
 
 Build or rebuild the local index:
