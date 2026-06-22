@@ -2,7 +2,7 @@
 
 Local-first CLI to index and search your Claude Code, Codex, and Cursor chat history from one place.
 
-![MIT License](https://img.shields.io/badge/license-MIT-blue.svg) ![Node >=20](https://img.shields.io/badge/node-%3E%3D20-339933.svg) ![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-informational.svg) ![Local-first](https://img.shields.io/badge/local--first-yes-brightgreen.svg) ![Zero network](https://img.shields.io/badge/network-zero-lightgrey.svg)
+![MIT License](https://img.shields.io/badge/license-MIT-blue.svg) ![Node >=20](https://img.shields.io/badge/node-%3E%3D20-339933.svg) ![npm](https://img.shields.io/npm/v/@rodabuilds/sift) ![Local-first](https://img.shields.io/badge/local--first-yes-brightgreen.svg) ![Zero network](https://img.shields.io/badge/network-zero-lightgrey.svg)
 
 ## The Problem
 
