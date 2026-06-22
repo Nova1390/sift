@@ -28,6 +28,13 @@
   "bin": {
     "sift": "bin/sift.js"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20"
   },
