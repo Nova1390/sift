@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows 0.x versioning while it is early.
 
+## [0.2.1] - 2026-06-22
+
+### Added
+
+- Automated GitHub Release creation on version tag pushes.
+
+### Changed
+
+- README example output polish with neutral wording and English snippets.
+
 ## [0.2.0] - 2026-06-20
 
 ### Added

@@ -85,10 +85,10 @@ sift list
 Example output:
 
 ```txt
-[cursor · 2026-06-20 11:53] Sì, capisco l’italiano e posso risponderti in italiano senza problemi.
+[cursor · 2026-06-20 11:53] Traced the Cursor composer storage path and confirmed the message payload shape.
 /Users/you/Library/Application Support/Cursor/User/globalStorage/state.vscdb#db6394d1-a474-45ae-87b1-1d7c210585e2
 
-[codex · 2026-06-20 10:44] Built and pushed `sift` v1. Implemented the local-first Node CLI...
+[codex · 2026-06-20 10:44] Shipped the local-first Node CLI for searching AI coding-assistant logs...
 /Users/you/.codex/sessions/2026/06/20/rollout-2026-06-20T08-46-33-019ee3c7.jsonl
 ```
 
