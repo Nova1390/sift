@@ -92,6 +92,16 @@ Example output:
 /Users/you/.codex/sessions/2026/06/20/rollout-2026-06-20T08-46-33-019ee3c7.jsonl
 ```
 
+## Agent Integrations
+
+This repo includes lightweight local instructions for coding agents:
+
+- Agent Skills-compatible clients: `.agents/skills/sift-memory/SKILL.md`
+- Cursor: `.cursor/rules/sift-memory.mdc`
+- Claude Code fallback/project notes: `CLAUDE.md`
+
+They teach agents to run `sift index`, `sift "<query>"`, and `sift list` as local shell commands. They do not add network access, telemetry, sync, or writes to source logs.
+
 ## How It Works
 
 `sift index` scans the known local storage locations for Claude Code, Codex, and Cursor. Missing directories are skipped gracefully. Repeated runs are incremental: unchanged Claude and Codex files are reused from the local file cache, while Cursor SQLite databases are re-read each time because their WAL files can change without updating the main database timestamp.

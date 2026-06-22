@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sift Memory"
+  short_description: "Search local AI session history"
+  default_prompt: "Use $sift-memory to search local AI coding assistant session history before continuing."

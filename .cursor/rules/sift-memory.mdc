@@ -1,0 +1,38 @@
+---
+description: Use the local `sift` CLI to search Claude Code, Codex, and Cursor chat history when prior AI coding-assistant context, session memory, implementation history, or project decisions would help.
+alwaysApply: false
+---
+
+# Sift Memory
+
+Use `sift` as local memory search for prior AI coding-assistant sessions.
+
+## Commands
+
+Prefer the installed CLI:
+
+```sh
+sift index
+sift "<query>" --limit 10
+sift "<query>" --tool codex --limit 10
+sift "<query>" --tool claude --limit 10
+sift "<query>" --tool cursor --limit 10
+sift list --limit 10
+```
+
+When working inside the `sift` repo and the global command is unavailable, use:
+
+```sh
+node ./bin/sift.js index
+node ./bin/sift.js "<query>" --limit 10
+node ./bin/sift.js list --limit 10
+```
+
+Use `sift index --full` only when the user asks, parser/index behavior changed, or incremental results look stale.
+
+## Behavior
+
+- Search before answering when local session history could materially improve accuracy.
+- Use focused queries based on project names, command names, file names, bug symptoms, package names, or prior decisions.
+- Summarize only relevant findings. Do not paste large raw logs.
+- Keep the workflow local: no network calls, no telemetry, no sync, no writes to Claude Code, Codex, or Cursor source logs/databases.
