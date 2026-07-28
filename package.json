@@ -19,12 +19,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Nova1390/sift.git"
+    "url": "git+https://github.com/roccodaffuso/sift.git"
   },
   "bugs": {
-    "url": "https://github.com/Nova1390/sift/issues"
+    "url": "https://github.com/roccodaffuso/sift/issues"
   },
-  "homepage": "https://github.com/Nova1390/sift",
+  "homepage": "https://github.com/roccodaffuso/sift",
   "bin": {
     "sift": "bin/sift.js"
   },

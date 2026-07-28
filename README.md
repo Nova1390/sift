@@ -31,7 +31,7 @@ sift "your query"
 Or install from source:
 
 ```sh
-git clone https://github.com/Nova1390/sift.git
+git clone https://github.com/roccodaffuso/sift.git
 cd sift
 npm install
 npm link
@@ -54,7 +54,7 @@ node ./bin/sift.js --help
 Add sift to your coding agent (Claude Code, Codex, or Cursor) via the open skills CLI:
 
 ```sh
-npx skills add Nova1390/sift
+npx skills add roccodaffuso/sift
 ```
 
 This installs the `sift-memory` skill so your agent can search your past sessions on its own, fully local.
