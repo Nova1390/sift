@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows 0.x versioning while it is early.
 
+## [0.2.2] - 2026-07-30
+
+### Added
+
+- Parser, storage, privacy, and package metadata tests using the Node.js test runner.
+- Continuous integration on Node.js 20, 22, and 24.
+
+### Changed
+
+- Cursor's `better-sqlite3` integration is now optional so Claude and Codex remain usable when the native module is unavailable.
+- Session counts are calculated from unique normalized session identifiers.
+- npm repository metadata now points to `roccodaffuso/sift`.
+
+### Fixed
+
+- The local index is written atomically with private directory and file permissions on POSIX systems.
+- Corrupt or incompatible indexes now produce a friendly rebuild instruction.
+
 ## [0.2.1] - 2026-06-22
 
 ### Added

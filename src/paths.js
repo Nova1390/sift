@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { ensurePrivateDir } from './storage.js';
 
 export const homeDir = os.homedir();
 export const indexDir = path.join(homeDir, '.sift');
@@ -16,7 +17,7 @@ export const sourceRoots = {
 };
 
 export function ensureIndexDir() {
-  fs.mkdirSync(indexDir, { recursive: true });
+  ensurePrivateDir(indexDir);
 }
 
 export function findJsonlFiles(root) {

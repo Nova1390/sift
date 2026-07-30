@@ -94,7 +94,7 @@ function runSearch(args) {
   const query = positionals.join(' ').trim();
   if (!query) fail('Please provide a search query. Try: sift search "graphify"');
 
-  const loaded = loadIndex();
+  const loaded = loadIndexOrFail();
   if (!loaded) fail(`No index found yet. Run: sift index`);
 
   const results = searchIndex(loaded, query, {
@@ -115,7 +115,7 @@ function runSearch(args) {
 
 function runList(args) {
   const { values } = parseCli(args);
-  const loaded = loadIndex();
+  const loaded = loadIndexOrFail();
   if (!loaded) fail(`No index found yet. Run: sift index`);
 
   const sessions = listSessions(loaded, {
@@ -131,6 +131,14 @@ function runList(args) {
   for (const session of sessions) {
     console.log(formatSession(session));
     console.log('');
+  }
+}
+
+function loadIndexOrFail() {
+  try {
+    return loadIndex();
+  } catch (error) {
+    fail(error.message);
   }
 }
 

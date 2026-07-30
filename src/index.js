@@ -4,6 +4,7 @@ import { parseClaudeFile } from './parse-claude.js';
 import { parseCodexFile } from './parse-codex.js';
 import { parseCursorFile } from './parse-cursor.js';
 import { ensureIndexDir, findFilesNamed, findJsonlFiles, indexFile, sourceRoots } from './paths.js';
+import { atomicWriteJson } from './storage.js';
 import { shortExcerpt } from './text.js';
 
 export const miniSearchOptions = {
@@ -92,22 +93,39 @@ export function buildIndex({ full = false } = {}) {
   };
 
   ensureIndexDir();
-  fs.writeFileSync(indexFile, JSON.stringify(payload), 'utf8');
+  atomicWriteJson(indexFile, payload);
   return { ...payload, indexFile, cacheStats, sourceCounts: { claude: claudeFiles.length, codex: codexFiles.length, cursor: uniqueCursorFiles.length } };
 }
 
-export function loadIndex() {
-  if (!fs.existsSync(indexFile)) return null;
-  const payload = JSON.parse(fs.readFileSync(indexFile, 'utf8'));
+export function loadIndex(file = indexFile) {
+  if (!fs.existsSync(file)) return null;
+
+  let payload;
+  try {
+    payload = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    throw new Error('The sift index is corrupt. Run: sift index --full');
+  }
+
+  if (!payload || typeof payload !== 'object' || !payload.miniSearch) {
+    throw new Error('The sift index is incompatible. Run: sift index --full');
+  }
+
   const records = payload.fileCache
     ? recordsFromFileCache(payload.fileCache)
     : payload.records ?? [];
-  return {
-    ...payload,
-    records,
-    indexFile,
-    miniSearch: MiniSearch.loadJS(payload.miniSearch, miniSearchOptions)
-  };
+
+  try {
+    return {
+      ...payload,
+      records,
+      indexFile: file,
+      miniSearch: MiniSearch.loadJS(payload.miniSearch, miniSearchOptions)
+    };
+  } catch (error) {
+    if (error.code === 'ENOENT') throw error;
+    throw new Error('The sift index is incompatible. Run: sift index --full');
+  }
 }
 
 function readExistingIndexPayload() {
@@ -159,19 +177,29 @@ function recordsFromFileCache(fileCache = {}) {
     .flatMap((file) => fileCache[file].records ?? []);
 }
 
-function calculateStats(fileCache) {
+export function calculateStats(fileCache) {
   const stats = {
     claude: { sessions: 0, messages: 0 },
     codex: { sessions: 0, messages: 0 },
     cursor: { sessions: 0, messages: 0 }
   };
+  const sessions = {
+    claude: new Set(),
+    codex: new Set(),
+    cursor: new Set()
+  };
 
   for (const entry of Object.values(fileCache)) {
     const toolStats = stats[entry.tool];
     if (!toolStats) continue;
-    const count = entry.records?.length ?? 0;
-    if (count) toolStats.sessions += 1;
-    toolStats.messages += count;
+    for (const record of entry.records ?? []) {
+      toolStats.messages += 1;
+      if (record.session) sessions[entry.tool].add(record.session);
+    }
+  }
+
+  for (const tool of Object.keys(stats)) {
+    stats[tool].sessions = sessions[tool].size;
   }
 
   return stats;

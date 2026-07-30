@@ -1,0 +1,3 @@
+{"timestamp":"2026-07-30T08:00:00.000Z","message":{"role":"user","content":"Find the local cache bug"}}
+{"timestamp":"2026-07-30T08:01:00.000Z","message":{"role":"assistant","content":[{"type":"text","text":"The cache key is stale."},{"type":"tool_use","name":"Read"}]}}
+{"message":{"role":"user","content":"this line is intentionally malformed"

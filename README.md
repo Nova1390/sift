@@ -17,6 +17,7 @@ Claude Code, Codex, and Cursor all store useful coding-assistant history locally
 - Filters with `--tool claude|codex|cursor` and `--limit N`.
 - 100% local, read-only for source logs/databases, zero network, zero telemetry.
 - No cloud dependencies.
+- Private, atomically written local index on POSIX systems.
 
 ## Install
 
@@ -116,7 +117,7 @@ They teach agents to run `sift index`, `sift "<query>"`, and `sift list` as loca
 
 `sift index` scans the known local storage locations for Claude Code, Codex, and Cursor. Missing directories are skipped gracefully. Repeated runs are incremental: unchanged Claude and Codex files are reused from the local file cache, while Cursor SQLite databases are re-read each time because their WAL files can change without updating the main database timestamp.
 
-Claude Code and Codex JSONL files are parsed line by line. Malformed lines are skipped instead of failing the whole index run. Cursor databases are opened read-only with `better-sqlite3`; locked databases, missing schemas, or unsupported Cursor versions produce warnings and are skipped without breaking Claude/Codex indexing.
+Claude Code and Codex JSONL files are parsed line by line. Malformed lines are skipped instead of failing the whole index run. Cursor databases are opened read-only with the optional `better-sqlite3` integration; locked databases, missing schemas, unsupported Cursor versions, or an unavailable native module produce warnings and are skipped without breaking Claude/Codex indexing.
 
 Human-readable user and assistant messages are normalized to:
 
@@ -139,6 +140,7 @@ Privacy is the main constraint.
 - Only reads from `~/.claude`, `~/.codex`, and Cursor's local storage.
 - Never writes to source logs or Cursor databases.
 - Writes only its own index under `~/.sift/`.
+- Uses private directory/file permissions on POSIX and replaces the index atomically.
 - Makes zero network requests.
 - Has no telemetry, sync, accounts, or remote services.
 

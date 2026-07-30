@@ -1,6 +1,6 @@
 {
   "name": "@rodabuilds/sift",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Local-first CLI to index and search Claude Code, Codex, and Cursor chat history.",
   "type": "module",
   "author": "Rocco (@rodabuilds)",
@@ -40,11 +40,14 @@
   },
   "scripts": {
     "start": "node ./bin/sift.js",
-    "index": "node ./bin/sift.js index"
+    "index": "node ./bin/sift.js index",
+    "test": "node --test"
   },
   "dependencies": {
-    "better-sqlite3": "^12.11.1",
     "minisearch": "^7.1.2"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^12.11.1"
   },
   "license": "MIT"
 }
