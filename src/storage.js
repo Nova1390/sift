@@ -46,3 +46,32 @@ export function secureFile(file) {
     fs.chmodSync(file, privateFileMode);
   }
 }
+
+export function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+export function fileMode(file) {
+  if (process.platform === 'win32') return null;
+  return fs.statSync(file).mode & 0o777;
+}
+
+export function directorySize(dir) {
+  let size = 0;
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+
+  for (const entry of entries) {
+    const file = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      size += directorySize(file);
+    } else if (entry.isFile()) {
+      size += fs.statSync(file).size;
+    }
+  }
+  return size;
+}

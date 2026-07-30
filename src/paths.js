@@ -6,6 +6,8 @@ import { ensurePrivateDir } from './storage.js';
 export const homeDir = os.homedir();
 export const indexDir = path.join(homeDir, '.sift');
 export const indexFile = path.join(indexDir, 'index.json');
+export const cacheDir = path.join(indexDir, 'cache');
+export const storagePaths = { indexDir, indexFile, cacheDir };
 
 export const sourceRoots = {
   claude: path.join(homeDir, '.claude', 'projects'),
@@ -18,6 +20,15 @@ export const sourceRoots = {
 
 export function ensureIndexDir() {
   ensurePrivateDir(indexDir);
+  ensurePrivateDir(cacheDir);
+}
+
+export function createStoragePaths(dir) {
+  return {
+    indexDir: dir,
+    indexFile: path.join(dir, 'index.json'),
+    cacheDir: path.join(dir, 'cache')
+  };
 }
 
 export function findJsonlFiles(root) {

@@ -1,193 +1,268 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
+import path from 'node:path';
 import MiniSearch from 'minisearch';
 import { parseClaudeFile } from './parse-claude.js';
 import { parseCodexFile } from './parse-codex.js';
 import { parseCursorFile } from './parse-cursor.js';
-import { ensureIndexDir, findFilesNamed, findJsonlFiles, indexFile, sourceRoots } from './paths.js';
-import { atomicWriteJson } from './storage.js';
-import { shortExcerpt } from './text.js';
+import { createStoragePaths, sourceRoots, storagePaths } from './paths.js';
+import { discoverSources, statSource } from './sources.js';
+import { atomicWriteJson, ensurePrivateDir, readJson } from './storage.js';
+
+export const indexPayloadVersion = 4;
+const legacyIndexPayloadVersion = 3;
+const shortRefLength = 12;
 
 export const miniSearchOptions = {
+  fields: ['text'],
+  storeFields: ['tool', 'session', 'role', 'ts', 'project'],
+  autoVacuum: false
+};
+
+const legacyMiniSearchOptions = {
   fields: ['text'],
   storeFields: ['tool', 'session', 'role', 'ts', 'project', 'excerpt']
 };
 
-const indexPayloadVersion = 3;
+export async function buildIndex({
+  full = false,
+  roots = sourceRoots,
+  storage: storageInput = storagePaths
+} = {}) {
+  const storage = normalizeStorage(storageInput);
+  ensurePrivateDir(storage.indexDir);
+  ensurePrivateDir(storage.cacheDir);
 
-export function buildIndex({ full = false } = {}) {
-  const malformed = [];
   const warnings = [];
-  const previousPayload = full ? null : readExistingIndexPayload();
-  const previousFileCache = previousPayload?.version === indexPayloadVersion &&
-    previousPayload?.fileCache &&
-    typeof previousPayload.fileCache === 'object'
-    ? previousPayload.fileCache
-    : {};
-  const fileCache = {};
+  const previousPayload = full ? null : readExistingIndexPayload(storage.indexFile);
+  const previous = loadPreviousV4(previousPayload, storage);
+  if (previousPayload?.version === indexPayloadVersion && !previous) {
+    warnings.push('Existing v4 index could not be reused; rebuilding it from source logs');
+  }
+
+  const previousManifest = previous?.payload.sourceManifest ?? {};
+  const miniSearch = previous?.miniSearch ?? new MiniSearch(miniSearchOptions);
+  const sourceManifest = {};
   const cacheStats = {
     reused: { claude: 0, codex: 0, cursor: 0 },
-    parsed: { claude: 0, codex: 0, cursor: 0 }
+    parsed: { claude: 0, codex: 0, cursor: 0 },
+    removed: { claude: 0, codex: 0, cursor: 0 }
   };
+  const discovered = discoverSources(roots);
+  const currentPaths = new Set(discovered.files.map(({ file }) => file));
+  const generation = `${Date.now().toString(36)}-${process.pid}`;
 
-  const claudeFiles = findJsonlFiles(sourceRoots.claude);
-  const codexFiles = [
-    ...findJsonlFiles(sourceRoots.codexSessions),
-    ...findJsonlFiles(sourceRoots.codexArchived)
-  ];
-  const cursorFiles = [
-    ...findFilesNamed(sourceRoots.cursorMacUser, 'state.vscdb'),
-    ...findFilesNamed(sourceRoots.cursorLinuxUser, 'state.vscdb'),
-    ...findFilesNamed(sourceRoots.cursorWindowsUser, 'state.vscdb')
-  ];
-  const uniqueCursorFiles = [...new Set(cursorFiles)];
-
-  if (!uniqueCursorFiles.length) {
+  if (!discovered.cursor.length) {
     warnings.push('Cursor skipped: no state.vscdb files found');
   }
 
-  for (const { file, tool } of [
-    ...claudeFiles.map((file) => ({ file, tool: 'claude' })),
-    ...codexFiles.map((file) => ({ file, tool: 'codex' })),
-    ...uniqueCursorFiles.map((file) => ({ file, tool: 'cursor' }))
-  ]) {
-    const stat = statSourceFile(file, warnings);
-    if (!stat) continue;
+  for (const { file, tool } of discovered.files) {
+    const cached = previousManifest[file];
+    let stat;
+    try {
+      stat = statSource(file);
+    } catch (error) {
+      warnings.push(`Skipped ${file}: ${error.message}`);
+      if (cached && shardExists(storage, cached)) {
+        sourceManifest[file] = cached;
+        cacheStats.reused[tool] += 1;
+      }
+      continue;
+    }
 
-    const cached = previousFileCache[file];
-    if (tool !== 'cursor' && isReusableCacheEntry(cached, stat, tool)) {
-      fileCache[file] = cached;
+    if (tool !== 'cursor' && isReusableSource(cached, stat, tool, storage)) {
+      sourceManifest[file] = cached;
       cacheStats.reused[tool] += 1;
       continue;
     }
 
-    // Cursor can update via SQLite WAL files without touching state.vscdb mtime, so always re-parse it.
-    const parsed = parseFileByTool(tool, file, malformed, warnings);
-    cacheStats.parsed[tool] += 1;
-    fileCache[file] = {
+    if (cached) {
+      discardSource(miniSearch, cached);
+    }
+
+    const parsed = parseSource(tool, file);
+    const sourceHash = hashSource(file);
+    const records = parsed.records.map((record, offset) => ({
+      ...record,
+      id: documentId(sourceHash, offset)
+    }));
+    const cacheFile = `${sourceHash}-${generation}.json`;
+
+    atomicWriteJson(path.join(storage.cacheDir, cacheFile), {
+      version: 1,
+      source: file,
+      tool,
+      records
+    });
+
+    if (records.length) {
+      miniSearch.addAll(records);
+    }
+
+    sourceManifest[file] = {
       mtimeMs: stat.mtimeMs,
       size: stat.size,
       tool,
-      records: withExcerpt(parsed)
+      sourceHash,
+      cacheFile,
+      recordCount: records.length,
+      sessions: summarizeSessions(records),
+      malformedCount: parsed.malformedCount,
+      warnings: parsed.warnings
     };
+    cacheStats.parsed[tool] += 1;
   }
 
-  const records = recordsFromFileCache(fileCache);
-  const stats = calculateStats(fileCache);
-
-  if (uniqueCursorFiles.length && stats.cursor.messages === 0) {
-    warnings.push(`Cursor: found ${uniqueCursorFiles.length} db(s) but 0 messages extracted`);
+  for (const [file, entry] of Object.entries(previousManifest)) {
+    if (currentPaths.has(file)) continue;
+    discardSource(miniSearch, entry);
+    cacheStats.removed[entry.tool] += 1;
   }
 
-  const miniSearch = new MiniSearch(miniSearchOptions);
-  miniSearch.addAll(records);
+  if (miniSearch.dirtCount > 0) {
+    await miniSearch.vacuum({
+      batchSize: miniSearch.termCount + 1,
+      batchWait: 0
+    });
+  }
+
+  const sessions = aggregateSessions(sourceManifest);
+  const stats = calculateManifestStats(sourceManifest, sessions);
+  const malformedCount = Object.values(sourceManifest)
+    .reduce((sum, entry) => sum + (entry.malformedCount ?? 0), 0);
+
+  for (const entry of Object.values(sourceManifest)) {
+    warnings.push(...(entry.warnings ?? []));
+  }
+  if (discovered.cursor.length && stats.cursor.messages === 0) {
+    warnings.push(`Cursor: found ${discovered.cursor.length} db(s) but 0 messages extracted`);
+  }
 
   const payload = {
     version: indexPayloadVersion,
     generatedAt: new Date().toISOString(),
     stats,
-    malformedCount: malformed.length,
-    warnings,
+    malformedCount,
+    warnings: [...new Set(warnings)],
     cacheStats,
-    fileCache,
+    sourceManifest,
+    sessions,
     miniSearch: miniSearch.toJSON()
   };
 
-  ensureIndexDir();
-  atomicWriteJson(indexFile, payload);
-  return { ...payload, indexFile, cacheStats, sourceCounts: { claude: claudeFiles.length, codex: codexFiles.length, cursor: uniqueCursorFiles.length } };
+  atomicWriteJson(storage.indexFile, payload);
+  cleanupCache(storage, sourceManifest);
+
+  return {
+    ...payload,
+    indexFile: storage.indexFile,
+    storage,
+    sourceCounts: {
+      claude: discovered.claude.length,
+      codex: discovered.codex.length,
+      cursor: discovered.cursor.length
+    }
+  };
 }
 
-export function loadIndex(file = indexFile) {
-  if (!fs.existsSync(file)) return null;
+export function loadIndex(storageInput = storagePaths) {
+  const storage = normalizeStorage(storageInput);
+  if (!fs.existsSync(storage.indexFile)) return null;
 
   let payload;
   try {
-    payload = JSON.parse(fs.readFileSync(file, 'utf8'));
+    payload = readJson(storage.indexFile);
   } catch {
     throw new Error('The sift index is corrupt. Run: sift index --full');
   }
 
-  if (!payload || typeof payload !== 'object' || !payload.miniSearch) {
-    throw new Error('The sift index is incompatible. Run: sift index --full');
-  }
-
-  const records = payload.fileCache
-    ? recordsFromFileCache(payload.fileCache)
-    : payload.records ?? [];
-
   try {
-    return {
-      ...payload,
-      records,
-      indexFile: file,
-      miniSearch: MiniSearch.loadJS(payload.miniSearch, miniSearchOptions)
-    };
-  } catch (error) {
-    if (error.code === 'ENOENT') throw error;
-    throw new Error('The sift index is incompatible. Run: sift index --full');
-  }
-}
+    if (payload.version === indexPayloadVersion) {
+      if (!payload.sourceManifest || !Array.isArray(payload.sessions) || !payload.miniSearch) {
+        throw new Error('invalid v4 payload');
+      }
+      const miniSearch = MiniSearch.loadJS(payload.miniSearch, miniSearchOptions);
+      return createLoadedV4(payload, miniSearch, storage);
+    }
 
-function readExistingIndexPayload() {
-  if (!fs.existsSync(indexFile)) return null;
-
-  try {
-    return JSON.parse(fs.readFileSync(indexFile, 'utf8'));
+    if (payload.version === legacyIndexPayloadVersion && payload.miniSearch) {
+      const records = payload.fileCache
+        ? recordsFromFileCache(payload.fileCache)
+        : payload.records ?? [];
+      return {
+        ...payload,
+        formatVersion: legacyIndexPayloadVersion,
+        records,
+        indexFile: storage.indexFile,
+        storage,
+        miniSearch: MiniSearch.loadJS(payload.miniSearch, legacyMiniSearchOptions)
+      };
+    }
   } catch {
-    return null;
+    throw new Error('The sift index is incompatible. Run: sift index --full');
   }
+
+  throw new Error('The sift index is outdated. Run: sift index --full');
 }
 
-function statSourceFile(file, warnings) {
-  try {
-    const stat = fs.statSync(file);
-    return { mtimeMs: stat.mtimeMs, size: stat.size };
-  } catch (error) {
-    warnings.push(`Skipped ${file}: ${error.message}`);
-    return null;
+export function loadRecord(loaded, id) {
+  if (loaded.formatVersion !== indexPayloadVersion) {
+    return loaded.records?.find((record) => record.id === id) ?? null;
   }
+
+  const parsed = parseDocumentId(id);
+  if (!parsed) return null;
+  const entry = loaded.sourceByHash.get(parsed.sourceHash);
+  if (!entry) return null;
+  const records = loadShardRecords(loaded, entry);
+  const record = records[parsed.offset];
+  return record?.id === id ? record : null;
 }
 
-function isReusableCacheEntry(cached, stat, tool) {
-  return Boolean(
-    cached &&
-    cached.tool === tool &&
-    cached.mtimeMs === stat.mtimeMs &&
-    cached.size === stat.size &&
-    Array.isArray(cached.records)
-  );
+export function resolveRecordRef(loaded, ref) {
+  if (loaded.formatVersion !== indexPayloadVersion) {
+    throw new Error('sift show requires a v4 index. Run: sift index');
+  }
+
+  const parsed = parseRecordRef(ref);
+  if (!parsed) {
+    throw new Error('Invalid result ref. Expected a value like a13f09c2e4ab:17');
+  }
+
+  const matches = [...loaded.sourceByHash.keys()]
+    .filter((hash) => hash.startsWith(parsed.sourcePrefix));
+  if (!matches.length) throw new Error(`No indexed result matches ref ${ref}`);
+  if (matches.length > 1) throw new Error(`Result ref ${ref} is ambiguous; use a longer hash prefix`);
+
+  const id = documentId(matches[0], parsed.offset);
+  const record = loadRecord(loaded, id);
+  if (!record) throw new Error(`No indexed result matches ref ${ref}`);
+  return { id, record, entry: loaded.sourceByHash.get(matches[0]) };
 }
 
-function parseFileByTool(tool, file, malformed, warnings) {
-  if (tool === 'claude') return parseClaudeFile(file, malformed);
-  if (tool === 'codex') return parseCodexFile(file, malformed);
-  return parseCursorFile(file, warnings);
+export function resultRef(loaded, id) {
+  if (loaded.formatVersion !== indexPayloadVersion) return null;
+  const parsed = parseDocumentId(id);
+  if (!parsed) return null;
+
+  let length = Math.min(shortRefLength, parsed.sourceHash.length);
+  const hashes = [...loaded.sourceByHash.keys()];
+  while (
+    length < parsed.sourceHash.length &&
+    hashes.some((hash) => hash !== parsed.sourceHash && hash.startsWith(parsed.sourceHash.slice(0, length)))
+  ) {
+    length += 1;
+  }
+  return `${parsed.sourceHash.slice(0, length)}:${parsed.offset}`;
 }
 
-function withExcerpt(records) {
-  return records.map((record) => ({
-    ...record,
-    excerpt: shortExcerpt(record.text)
-  }));
-}
-
-function recordsFromFileCache(fileCache = {}) {
-  return Object.keys(fileCache)
-    .sort()
-    .flatMap((file) => fileCache[file].records ?? []);
+export function loadSourceRecords(loaded, entry) {
+  return loadShardRecords(loaded, entry);
 }
 
 export function calculateStats(fileCache) {
-  const stats = {
-    claude: { sessions: 0, messages: 0 },
-    codex: { sessions: 0, messages: 0 },
-    cursor: { sessions: 0, messages: 0 }
-  };
-  const sessions = {
-    claude: new Set(),
-    codex: new Set(),
-    cursor: new Set()
-  };
+  const stats = emptyStats();
+  const sessions = { claude: new Set(), codex: new Set(), cursor: new Set() };
 
   for (const entry of Object.values(fileCache)) {
     const toolStats = stats[entry.tool];
@@ -201,6 +276,237 @@ export function calculateStats(fileCache) {
   for (const tool of Object.keys(stats)) {
     stats[tool].sessions = sessions[tool].size;
   }
-
   return stats;
+}
+
+function loadPreviousV4(payload, storage) {
+  if (
+    payload?.version !== indexPayloadVersion ||
+    !payload.sourceManifest ||
+    !payload.miniSearch
+  ) {
+    return null;
+  }
+
+  try {
+    const miniSearch = MiniSearch.loadJS(payload.miniSearch, miniSearchOptions);
+    const expectedDocuments = Object.values(payload.sourceManifest)
+      .reduce((sum, entry) => sum + (entry.recordCount ?? 0), 0);
+    if (miniSearch.documentCount !== expectedDocuments) return null;
+    return { payload, miniSearch, storage };
+  } catch {
+    return null;
+  }
+}
+
+function createLoadedV4(payload, miniSearch, storage) {
+  const sourceByHash = new Map();
+  for (const entry of Object.values(payload.sourceManifest)) {
+    if (entry.sourceHash) sourceByHash.set(entry.sourceHash, entry);
+  }
+  return {
+    ...payload,
+    formatVersion: indexPayloadVersion,
+    indexFile: storage.indexFile,
+    storage,
+    miniSearch,
+    sourceByHash,
+    shardCache: new Map()
+  };
+}
+
+function parseSource(tool, file) {
+  if (tool === 'cursor') {
+    const warnings = [];
+    return {
+      records: parseCursorFile(file, warnings),
+      malformedCount: 0,
+      warnings
+    };
+  }
+
+  const malformed = [];
+  const records = tool === 'claude'
+    ? parseClaudeFile(file, malformed)
+    : parseCodexFile(file, malformed);
+  return {
+    records,
+    malformedCount: malformed.length,
+    warnings: []
+  };
+}
+
+function isReusableSource(entry, stat, tool, storage) {
+  return Boolean(
+    entry &&
+    entry.tool === tool &&
+    entry.mtimeMs === stat.mtimeMs &&
+    entry.size === stat.size &&
+    Number.isInteger(entry.recordCount) &&
+    entry.sourceHash &&
+    shardExists(storage, entry)
+  );
+}
+
+function discardSource(miniSearch, entry) {
+  if (!entry?.sourceHash || !entry.recordCount) return;
+  const ids = Array.from(
+    { length: entry.recordCount },
+    (_, offset) => documentId(entry.sourceHash, offset)
+  );
+  miniSearch.discardAll(ids);
+}
+
+function summarizeSessions(records) {
+  const sessions = new Map();
+  for (const record of records) {
+    const existing = sessions.get(record.session);
+    if (!existing) {
+      sessions.set(record.session, {
+        tool: record.tool,
+        session: record.session,
+        project: record.project,
+        ts: record.ts,
+        messages: 1
+      });
+      continue;
+    }
+    existing.messages += 1;
+    if (compareTs(record.ts, existing.ts) > 0) existing.ts = record.ts;
+  }
+  return [...sessions.values()];
+}
+
+function aggregateSessions(sourceManifest) {
+  const sessions = new Map();
+  for (const entry of Object.values(sourceManifest)) {
+    for (const session of entry.sessions ?? []) {
+      const key = `${session.tool}\0${session.session}`;
+      const existing = sessions.get(key);
+      if (!existing) {
+        sessions.set(key, { ...session });
+        continue;
+      }
+      existing.messages += session.messages;
+      if (compareTs(session.ts, existing.ts) > 0) existing.ts = session.ts;
+    }
+  }
+  return [...sessions.values()].sort((a, b) => compareTs(b.ts, a.ts));
+}
+
+function calculateManifestStats(sourceManifest, sessions) {
+  const stats = emptyStats();
+  for (const entry of Object.values(sourceManifest)) {
+    if (stats[entry.tool]) stats[entry.tool].messages += entry.recordCount ?? 0;
+  }
+  for (const session of sessions) {
+    if (stats[session.tool]) stats[session.tool].sessions += 1;
+  }
+  return stats;
+}
+
+function emptyStats() {
+  return {
+    claude: { sessions: 0, messages: 0 },
+    codex: { sessions: 0, messages: 0 },
+    cursor: { sessions: 0, messages: 0 }
+  };
+}
+
+function cleanupCache(storage, sourceManifest) {
+  const referenced = new Set(Object.values(sourceManifest).map((entry) => entry.cacheFile));
+  let entries;
+  try {
+    entries = fs.readdirSync(storage.cacheDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isFile() || referenced.has(entry.name)) continue;
+    try {
+      fs.unlinkSync(path.join(storage.cacheDir, entry.name));
+    } catch {
+      // Orphan cleanup is best-effort and never invalidates the published manifest.
+    }
+  }
+}
+
+function loadShardRecords(loaded, entry) {
+  if (loaded.shardCache.has(entry.cacheFile)) {
+    return loaded.shardCache.get(entry.cacheFile);
+  }
+  const payload = readJson(shardPath(loaded.storage, entry.cacheFile));
+  if (!payload || !Array.isArray(payload.records)) {
+    throw new Error(`Index cache shard is corrupt: ${entry.cacheFile}. Run: sift index --full`);
+  }
+  loaded.shardCache.set(entry.cacheFile, payload.records);
+  return payload.records;
+}
+
+function shardExists(storage, entry) {
+  try {
+    return fs.existsSync(shardPath(storage, entry.cacheFile));
+  } catch {
+    return false;
+  }
+}
+
+function shardPath(storage, cacheFile) {
+  if (!cacheFile || path.basename(cacheFile) !== cacheFile) {
+    throw new Error('Invalid cache shard path');
+  }
+  return path.join(storage.cacheDir, cacheFile);
+}
+
+function readExistingIndexPayload(file) {
+  if (!fs.existsSync(file)) return null;
+  try {
+    return readJson(file);
+  } catch {
+    return null;
+  }
+}
+
+function recordsFromFileCache(fileCache = {}) {
+  return Object.keys(fileCache)
+    .sort()
+    .flatMap((file) => fileCache[file].records ?? []);
+}
+
+function normalizeStorage(input) {
+  if (typeof input === 'string') {
+    return createStoragePaths(path.dirname(input));
+  }
+  return input ?? storagePaths;
+}
+
+function hashSource(file) {
+  return createHash('sha256').update(path.resolve(file)).digest('hex');
+}
+
+function documentId(sourceHash, offset) {
+  return `${sourceHash}:${offset}`;
+}
+
+function parseDocumentId(id) {
+  const match = String(id ?? '').match(/^([a-f0-9]{64}):(\d+)$/);
+  if (!match) return null;
+  return { sourceHash: match[1], offset: Number.parseInt(match[2], 10) };
+}
+
+function parseRecordRef(ref) {
+  const match = String(ref ?? '').trim().match(/^([a-f0-9]{4,64}):(\d+)$/i);
+  if (!match) return null;
+  return {
+    sourcePrefix: match[1].toLowerCase(),
+    offset: Number.parseInt(match[2], 10)
+  };
+}
+
+function compareTs(a, b) {
+  if (!a && !b) return 0;
+  if (!a) return -1;
+  if (!b) return 1;
+  return a.localeCompare(b);
 }

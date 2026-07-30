@@ -12,20 +12,22 @@ Use `sift` as local memory search for prior AI coding-assistant sessions.
 Prefer the installed CLI:
 
 ```sh
-sift index
-sift "<query>" --limit 10
-sift "<query>" --tool codex --limit 10
-sift "<query>" --tool claude --limit 10
-sift "<query>" --tool cursor --limit 10
-sift list --limit 10
+sift index --json
+sift "<query>" --limit 10 --json
+sift "<query>" --tool codex --limit 10 --json
+sift "<query>" --tool claude --limit 10 --json
+sift "<query>" --tool cursor --limit 10 --json
+sift show "<ref>" --json
+sift list --limit 10 --json
 ```
 
 When working inside the `sift` repo and the global command is unavailable, use:
 
 ```sh
-node ./bin/sift.js index
-node ./bin/sift.js "<query>" --limit 10
-node ./bin/sift.js list --limit 10
+node ./bin/sift.js index --json
+node ./bin/sift.js "<query>" --limit 10 --json
+node ./bin/sift.js show "<ref>" --json
+node ./bin/sift.js list --limit 10 --json
 ```
 
 Use `sift index --full` only when the user asks, parser/index behavior changed, or incremental results look stale.
@@ -34,5 +36,6 @@ Use `sift index --full` only when the user asks, parser/index behavior changed, 
 
 - Search before answering when local session history could materially improve accuracy.
 - Use focused queries based on project names, command names, file names, bug symptoms, package names, or prior decisions.
+- Follow only relevant search refs with `sift show` when surrounding messages are needed.
 - Summarize only relevant findings. Do not paste large raw logs.
 - Keep the workflow local: no network calls, no telemetry, no sync, no writes to Claude Code, Codex, or Cursor source logs/databases.

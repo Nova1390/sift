@@ -1,4 +1,11 @@
 import { dateTimePart } from './text.js';
+import {
+  indexPayloadVersion,
+  loadRecord,
+  loadSourceRecords,
+  resolveRecordRef,
+  resultRef
+} from './index.js';
 
 const ansi = {
   bold: '\u001b[1m',
@@ -9,7 +16,6 @@ const ansi = {
 };
 
 export function searchIndex(loaded, query, { tool, limit = 10 } = {}) {
-  const byId = new Map(loaded.records.map((record) => [record.id, record]));
   let results = loaded.miniSearch.search(query, {
     prefix: true,
     fuzzy: 0.2,
@@ -24,13 +30,32 @@ export function searchIndex(loaded, query, { tool, limit = 10 } = {}) {
     });
   }
 
+  if (loaded.formatVersion === indexPayloadVersion) {
+    return results
+      .filter((result) => !tool || result.tool === tool)
+      .slice(0, limit)
+      .map((result) => ({
+        ...result,
+        ref: resultRef(loaded, result.id),
+        record: loadRecord(loaded, result.id)
+      }))
+      .filter((result) => result.record);
+  }
+
+  const byId = new Map(loaded.records.map((record) => [record.id, record]));
   return results
-    .map((result) => ({ ...result, record: byId.get(result.id) }))
+    .map((result) => ({ ...result, ref: null, record: byId.get(result.id) }))
     .filter((result) => result.record && (!tool || result.record.tool === tool))
     .slice(0, limit);
 }
 
 export function listSessions(loaded, { tool, limit = 20 } = {}) {
+  if (loaded.formatVersion === indexPayloadVersion) {
+    return loaded.sessions
+      .filter((session) => !tool || session.tool === tool)
+      .slice(0, limit);
+  }
+
   const sessions = new Map();
   for (const record of loaded.records) {
     if (tool && record.tool !== tool) continue;
@@ -57,7 +82,8 @@ export function formatResult(result, query, useColor = process.stdout.isTTY) {
   const record = result.record;
   const header = `[${record.tool} · ${dateTimePart(record.ts)}]`;
   const snippet = makeSnippet(record.text, query, useColor);
-  const session = useColor ? `${ansi.dim}${record.session}${ansi.reset}` : record.session;
+  const detail = result.ref ? `${record.session} · ref ${result.ref}` : record.session;
+  const session = useColor ? `${ansi.dim}${detail}${ansi.reset}` : detail;
   return `${color(header, ansi.cyan, useColor)} ${snippet}\n${session}`;
 }
 
@@ -68,7 +94,42 @@ export function formatSession(session, useColor = process.stdout.isTTY) {
   return `${color(header, ansi.cyan, useColor)}${project}\n${detail}`;
 }
 
-function makeSnippet(text, query, useColor) {
+export function showRecord(loaded, ref, { context = 2 } = {}) {
+  const resolved = resolveRecordRef(loaded, ref);
+  const records = loadSourceRecords(loaded, resolved.entry)
+    .filter((record) => record.session === resolved.record.session);
+  const targetIndex = records.findIndex((record) => record.id === resolved.id);
+  if (targetIndex < 0) throw new Error(`No indexed result matches ref ${ref}`);
+
+  const start = Math.max(0, targetIndex - context);
+  const end = Math.min(records.length, targetIndex + context + 1);
+  return {
+    ref: resultRef(loaded, resolved.id),
+    tool: resolved.record.tool,
+    session: resolved.record.session,
+    project: resolved.record.project,
+    messages: records.slice(start, end).map((record) => ({
+      ref: resultRef(loaded, record.id),
+      tool: record.tool,
+      session: record.session,
+      project: record.project,
+      role: record.role,
+      ts: record.ts,
+      text: record.text,
+      target: record.id === resolved.id
+    }))
+  };
+}
+
+export function formatShow(result, useColor = process.stdout.isTTY) {
+  return result.messages.map((message) => {
+    const marker = message.target ? '>' : ' ';
+    const header = `[${message.role} · ${dateTimePart(message.ts)} · ref ${message.ref}]`;
+    return `${marker} ${color(header, ansi.cyan, useColor)} ${message.text}`;
+  }).join('\n\n');
+}
+
+export function makeSnippet(text, query, useColor = false) {
   const terms = queryTerms(query);
   const lower = text.toLowerCase();
   const firstHit = terms

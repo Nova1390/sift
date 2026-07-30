@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows 0.x versioning while it is early.
 
+## [0.3.0] - 2026-07-30
+
+### Added
+
+- `sift show <ref>` for displaying the matched message with surrounding session context.
+- Structured `--json` output for index, search, list, show, and doctor commands.
+- `sift doctor` diagnostics for source availability, index health, freshness, size, and permissions.
+- Short, stable result references in human and JSON search output.
+
+### Changed
+
+- Index payload version 4 separates the MiniSearch manifest from private per-source record shards.
+- Incremental indexing updates only changed or deleted MiniSearch documents instead of rebuilding the full index.
+- Search hydrates only the record shards needed for final results, while list uses stored session summaries.
+- Version 3 indexes remain searchable and migrate to version 4 on the next index run.
+
 ## [0.2.2] - 2026-07-30
 
 ### Added

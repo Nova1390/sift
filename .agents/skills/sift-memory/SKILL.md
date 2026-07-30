@@ -31,19 +31,19 @@ Do not use `npx` or any network-based install path. If neither command works, te
 Refresh the local index before memory-heavy work, after new logs were created, or when search says no index exists:
 
 ```sh
-sift index
+sift index --json
 ```
 
 Use the repo-local fallback when needed:
 
 ```sh
-node ./bin/sift.js index
+node ./bin/sift.js index --json
 ```
 
 Use a full rebuild only when the user asks, parser/index behavior changed, or results look stale after an incremental run:
 
 ```sh
-sift index --full
+sift index --full --json
 ```
 
 ### sift_search
@@ -51,40 +51,51 @@ sift index --full
 Search prior local sessions with targeted queries:
 
 ```sh
-sift "<query>" --limit 10
+sift "<query>" --limit 10 --json
 ```
 
 Filter by source when useful:
 
 ```sh
-sift "<query>" --tool codex --limit 10
-sift "<query>" --tool claude --limit 10
-sift "<query>" --tool cursor --limit 10
+sift "<query>" --tool codex --limit 10 --json
+sift "<query>" --tool claude --limit 10 --json
+sift "<query>" --tool cursor --limit 10 --json
 ```
 
 Good queries are concrete: project names, command names, file names, bug symptoms, package names, decisions, or user phrasing. Prefer a few focused searches over one broad search.
+
+### sift_show
+
+Follow a search result ref when the surrounding conversation is needed:
+
+```sh
+sift show "<ref>" --json
+```
+
+Use `--context N` only when the default two messages before and after are insufficient.
 
 ### sift_list
 
 List recent indexed sessions when you need orientation before choosing search terms:
 
 ```sh
-sift list --limit 10
+sift list --limit 10 --json
 ```
 
 Filter by source when useful:
 
 ```sh
-sift list --tool codex --limit 10
+sift list --tool codex --limit 10 --json
 ```
 
 ## Workflow
 
 1. Use this skill when local session memory could materially improve the answer.
 2. Run `sift index` unless the task is tiny or the index is known to be fresh.
-3. Run `sift_search` with 1-3 focused queries.
-4. Use the results as private local context. Summarize only the relevant facts needed for the task.
-5. Do not paste large raw logs. Do not expose secrets, credentials, tokens, private personal data, or unrelated session contents.
+3. Run `sift_search` with 1-3 focused queries and structured JSON output.
+4. Follow only the most relevant result refs with `sift_show` when more context is needed.
+5. Use the results as private local context. Summarize only the relevant facts needed for the task.
+6. Do not paste large raw logs. Do not expose secrets, credentials, tokens, private personal data, or unrelated session contents.
 
 ## Privacy
 
@@ -93,4 +104,4 @@ Keep the workflow local and read-only for source logs:
 - Do not send `sift` results to remote services.
 - Do not add telemetry, sync, embeddings, or network calls.
 - Do not write to Claude Code, Codex, or Cursor source logs/databases.
-- Treat `~/.sift/index.json` as local private context.
+- Treat everything under `~/.sift/` as local private context.
