@@ -5,6 +5,7 @@ import MiniSearch from 'minisearch';
 import { parseClaudeFile } from './parse-claude.js';
 import { parseCodexFile } from './parse-codex.js';
 import { parseCursorFile } from './parse-cursor.js';
+import { parseOpenCodeFile } from './parse-opencode.js';
 import { createStoragePaths, sourceRoots, storagePaths } from './paths.js';
 import { discoverSources, statSource } from './sources.js';
 import { atomicWriteJson, ensurePrivateDir, readJson } from './storage.js';
@@ -12,6 +13,7 @@ import { atomicWriteJson, ensurePrivateDir, readJson } from './storage.js';
 export const indexPayloadVersion = 4;
 const legacyIndexPayloadVersion = 3;
 const shortRefLength = 12;
+const alwaysRefreshTools = new Set(['cursor', 'opencode']);
 
 export const miniSearchOptions = {
   fields: ['text'],
@@ -44,9 +46,9 @@ export async function buildIndex({
   const miniSearch = previous?.miniSearch ?? new MiniSearch(miniSearchOptions);
   const sourceManifest = {};
   const cacheStats = {
-    reused: { claude: 0, codex: 0, cursor: 0 },
-    parsed: { claude: 0, codex: 0, cursor: 0 },
-    removed: { claude: 0, codex: 0, cursor: 0 }
+    reused: emptyToolCounts(),
+    parsed: emptyToolCounts(),
+    removed: emptyToolCounts()
   };
   const discovered = discoverSources(roots);
   const currentPaths = new Set(discovered.files.map(({ file }) => file));
@@ -54,6 +56,9 @@ export async function buildIndex({
 
   if (!discovered.cursor.length) {
     warnings.push('Cursor skipped: no state.vscdb files found');
+  }
+  if (!discovered.opencode.length) {
+    warnings.push('OpenCode skipped: no opencode.db file found');
   }
 
   for (const { file, tool } of discovered.files) {
@@ -70,7 +75,8 @@ export async function buildIndex({
       continue;
     }
 
-    if (tool !== 'cursor' && isReusableSource(cached, stat, tool, storage)) {
+    // SQLite WAL changes may not update the main database file metadata.
+    if (!alwaysRefreshTools.has(tool) && isReusableSource(cached, stat, tool, storage)) {
       sourceManifest[file] = cached;
       cacheStats.reused[tool] += 1;
       continue;
@@ -137,6 +143,9 @@ export async function buildIndex({
   if (discovered.cursor.length && stats.cursor.messages === 0) {
     warnings.push(`Cursor: found ${discovered.cursor.length} db(s) but 0 messages extracted`);
   }
+  if (discovered.opencode.length && stats.opencode.messages === 0) {
+    warnings.push(`OpenCode: found ${discovered.opencode.length} db(s) but 0 messages extracted`);
+  }
 
   const payload = {
     version: indexPayloadVersion,
@@ -160,7 +169,8 @@ export async function buildIndex({
     sourceCounts: {
       claude: discovered.claude.length,
       codex: discovered.codex.length,
-      cursor: discovered.cursor.length
+      cursor: discovered.cursor.length,
+      opencode: discovered.opencode.length
     }
   };
 }
@@ -262,7 +272,7 @@ export function loadSourceRecords(loaded, entry) {
 
 export function calculateStats(fileCache) {
   const stats = emptyStats();
-  const sessions = { claude: new Set(), codex: new Set(), cursor: new Set() };
+  const sessions = Object.fromEntries(Object.keys(stats).map((tool) => [tool, new Set()]));
 
   for (const entry of Object.values(fileCache)) {
     const toolStats = stats[entry.tool];
@@ -316,10 +326,12 @@ function createLoadedV4(payload, miniSearch, storage) {
 }
 
 function parseSource(tool, file) {
-  if (tool === 'cursor') {
+  if (tool === 'cursor' || tool === 'opencode') {
     const warnings = [];
     return {
-      records: parseCursorFile(file, warnings),
+      records: tool === 'cursor'
+        ? parseCursorFile(file, warnings)
+        : parseOpenCodeFile(file, warnings),
       malformedCount: 0,
       warnings
     };
@@ -409,8 +421,13 @@ function emptyStats() {
   return {
     claude: { sessions: 0, messages: 0 },
     codex: { sessions: 0, messages: 0 },
-    cursor: { sessions: 0, messages: 0 }
+    cursor: { sessions: 0, messages: 0 },
+    opencode: { sessions: 0, messages: 0 }
   };
+}
+
+function emptyToolCounts() {
+  return { claude: 0, codex: 0, cursor: 0, opencode: 0 };
 }
 
 function cleanupCache(storage, sourceManifest) {

@@ -56,10 +56,13 @@ test('stats count unique normalized sessions rather than source files', () => {
 
   assert.deepEqual(stats.cursor, { sessions: 2, messages: 3 });
   assert.deepEqual(stats.codex, { sessions: 1, messages: 2 });
+  assert.deepEqual(stats.opencode, { sessions: 0, messages: 0 });
 });
 
-test('Cursor native integration is declared optional', () => {
+test('SQLite source integration is optional and package metadata includes OpenCode', () => {
   const packageJson = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   assert.equal(packageJson.dependencies['better-sqlite3'], undefined);
   assert.equal(packageJson.optionalDependencies['better-sqlite3'], '^12.11.1');
+  assert.ok(packageJson.keywords.includes('opencode'));
+  assert.match(packageJson.description, /OpenCode/);
 });

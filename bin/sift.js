@@ -13,13 +13,15 @@ import {
   showRecord
 } from '../src/search.js';
 
-const usage = `sift - local search for Claude Code, Codex, and Cursor session logs
+const tools = ['claude', 'codex', 'cursor', 'opencode'];
+
+const usage = `sift - local search for Claude Code, Codex, Cursor, and OpenCode session logs
 
 Usage:
   sift index [--full] [--json]
-  sift search "<query>" [--tool claude|codex|cursor] [--limit N] [--json]
-  sift "<query>" [--tool claude|codex|cursor] [--limit N] [--json]
-  sift list [--tool claude|codex|cursor] [--limit N] [--json]
+  sift search "<query>" [--tool claude|codex|cursor|opencode] [--limit N] [--json]
+  sift "<query>" [--tool claude|codex|cursor|opencode] [--limit N] [--json]
+  sift list [--tool claude|codex|cursor|opencode] [--limit N] [--json]
   sift show <ref> [--context N] [--json]
   sift doctor [--json]
 
@@ -82,8 +84,8 @@ async function runIndex(args) {
   }
 
   if (totalMessages === 0) {
-    console.log('No Claude Code, Codex, or Cursor messages found.');
-    console.log('Checked ~/.claude/projects, ~/.codex/sessions, ~/.codex/archived_sessions, and Cursor user storage.');
+    console.log('No Claude Code, Codex, Cursor, or OpenCode messages found.');
+    console.log('Checked ~/.claude/projects, ~/.codex/sessions, ~/.codex/archived_sessions, Cursor user storage, and OpenCode data storage.');
     return;
   }
 
@@ -91,6 +93,7 @@ async function runIndex(args) {
   printToolSummary('claude', result.stats.claude);
   printToolSummary('codex', result.stats.codex);
   printToolSummary('cursor', result.stats.cursor);
+  printToolSummary('opencode', result.stats.opencode);
   printFileSummary(result.cacheStats);
   if (result.malformedCount) {
     console.log(`Skipped ${result.malformedCount} malformed JSONL line(s).`);
@@ -298,8 +301,8 @@ function parseDoctorCli(args) {
 }
 
 function validateTool(tool, json) {
-  if (tool && !['claude', 'codex', 'cursor'].includes(tool)) {
-    fail('--tool must be claude, codex, or cursor', json);
+  if (tool && !tools.includes(tool)) {
+    fail(`--tool must be ${tools.slice(0, -1).join(', ')}, or ${tools.at(-1)}`, json);
   }
 }
 
@@ -338,7 +341,7 @@ function totalCacheCount(counts = {}) {
 }
 
 function formatCacheCounts(counts = {}) {
-  return ['claude', 'codex', 'cursor'].map((tool) => `${tool} ${counts[tool] ?? 0}`).join(', ');
+  return tools.map((tool) => `${tool} ${counts[tool] ?? 0}`).join(', ');
 }
 
 function printJson(value) {

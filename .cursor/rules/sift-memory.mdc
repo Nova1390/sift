@@ -1,5 +1,5 @@
 ---
-description: Use the local `sift` CLI to search Claude Code, Codex, and Cursor chat history when prior AI coding-assistant context, session memory, implementation history, or project decisions would help.
+description: Use the local `sift` CLI to search Claude Code, Codex, Cursor, and OpenCode chat history when prior AI coding-assistant context, session memory, implementation history, or project decisions would help.
 alwaysApply: false
 ---
 
@@ -17,6 +17,7 @@ sift "<query>" --limit 10 --json
 sift "<query>" --tool codex --limit 10 --json
 sift "<query>" --tool claude --limit 10 --json
 sift "<query>" --tool cursor --limit 10 --json
+sift "<query>" --tool opencode --limit 10 --json
 sift show "<ref>" --json
 sift list --limit 10 --json
 ```
@@ -38,4 +39,4 @@ Use `sift index --full` only when the user asks, parser/index behavior changed, 
 - Use focused queries based on project names, command names, file names, bug symptoms, package names, or prior decisions.
 - Follow only relevant search refs with `sift show` when surrounding messages are needed.
 - Summarize only relevant findings. Do not paste large raw logs.
-- Keep the workflow local: no network calls, no telemetry, no sync, no writes to Claude Code, Codex, or Cursor source logs/databases.
+- Keep the workflow local: no network calls, no telemetry, no sync, no writes to Claude Code, Codex, Cursor, or OpenCode source logs/databases.

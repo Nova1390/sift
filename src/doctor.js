@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { indexPayloadVersion, loadIndex } from './index.js';
+import { inspectOpenCodeFile } from './parse-opencode.js';
 import { sourceRoots, storagePaths } from './paths.js';
 import { discoverSources, statSource } from './sources.js';
 import { directorySize, fileMode } from './storage.js';
@@ -29,9 +30,9 @@ export function runDoctor({
     errors.push(`Index format v${loaded.formatVersion} is outdated. Run: sift index`);
   }
 
-  const totalSources = discovered.claude.length + discovered.codex.length + discovered.cursor.length;
+  const totalSources = discovered.claude.length + discovered.codex.length + discovered.cursor.length + discovered.opencode.length;
   if (!totalSources) {
-    errors.push('No Claude Code, Codex, or Cursor source files were found');
+    errors.push('No Claude Code, Codex, Cursor, or OpenCode source files were found');
   }
 
   const sqliteAvailable = hasBetterSqlite();
@@ -39,6 +40,14 @@ export function runDoctor({
     warnings.push('Cursor is not installed or no state.vscdb files were found');
   } else if (!sqliteAvailable) {
     warnings.push('Cursor databases were found, but better-sqlite3 is unavailable');
+  }
+  const openCodeInspection = inspectOpenCode(discovered.opencode, sqliteAvailable);
+  if (!discovered.opencode.length) {
+    warnings.push('OpenCode is not installed or no opencode.db file was found');
+  } else if (!sqliteAvailable) {
+    warnings.push('OpenCode database was found, but better-sqlite3 is unavailable');
+  } else if (!openCodeInspection.schemaReadable) {
+    warnings.push(`OpenCode database schema is not readable: ${openCodeInspection.error}`);
   }
 
   const changes = summarizeChanges(compareSources(discovered.files, loaded?.sourceManifest ?? {}));
@@ -68,6 +77,12 @@ export function runDoctor({
         databases: discovered.cursor.length,
         sqliteAvailable,
         refreshRequired: discovered.cursor.length
+      },
+      opencode: {
+        databases: discovered.opencode.length,
+        sqliteAvailable,
+        schemaReadable: openCodeInspection.schemaReadable,
+        refreshRequired: discovered.opencode.length
       }
     },
     changes,
@@ -85,6 +100,7 @@ export function formatDoctor(result) {
     `  claude: ${result.sources.claude.files} file(s)`,
     `  codex: ${result.sources.codex.files} file(s)`,
     `  cursor: ${result.sources.cursor.databases} db(s), SQLite ${result.sources.cursor.sqliteAvailable ? 'available' : 'unavailable'}`,
+    `  opencode: ${result.sources.opencode.databases} db(s), SQLite ${result.sources.opencode.sqliteAvailable ? 'available' : 'unavailable'}, schema ${result.sources.opencode.schemaReadable ? 'readable' : 'unavailable'}`,
     `  changes: ${result.changes.new} new, ${result.changes.modified} modified, ${result.changes.deleted} deleted`
   ];
 
@@ -117,7 +133,7 @@ function compareSources(files, manifest) {
       added.push(file);
       continue;
     }
-    if (tool === 'cursor') continue;
+    if (tool === 'cursor' || tool === 'opencode') continue;
     try {
       const stat = statSource(file);
       if (entry.mtimeMs !== stat.mtimeMs || entry.size !== stat.size) {
@@ -187,9 +203,20 @@ function formatBytes(bytes) {
 
 function hasBetterSqlite() {
   try {
-    require.resolve('better-sqlite3');
+    require('better-sqlite3');
     return true;
   } catch {
     return false;
   }
+}
+
+function inspectOpenCode(files, sqliteAvailable) {
+  if (!files.length || !sqliteAvailable) {
+    return { schemaReadable: false, error: null };
+  }
+  for (const file of files) {
+    const result = inspectOpenCodeFile(file);
+    if (!result.ok) return { schemaReadable: false, error: result.error };
+  }
+  return { schemaReadable: true, error: null };
 }

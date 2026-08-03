@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows 0.x versioning while it is early.
 
+## [0.4.0] - 2026-08-03
+
+### Added
+
+- Read-only indexing and search for the current OpenCode SQLite session format.
+- OpenCode support across `--tool`, JSON output, session listing, result context, and `sift doctor`.
+- Parser coverage for visible text parts, malformed rows, active WAL files, incompatible schemas, and optional SQLite availability.
+
+### Changed
+
+- OpenCode databases are refreshed on every index run so committed WAL changes are not missed.
+- Agent instructions now cover Claude Code, Codex, Cursor, and OpenCode from the shared Agent Skill.
+
 ## [0.3.0] - 2026-07-30
 
 ### Added

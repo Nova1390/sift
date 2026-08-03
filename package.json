@@ -1,7 +1,7 @@
 {
   "name": "@rodabuilds/sift",
-  "version": "0.3.0",
-  "description": "Local-first CLI to index and search Claude Code, Codex, and Cursor chat history.",
+  "version": "0.4.0",
+  "description": "Local-first CLI to index and search Claude Code, Codex, Cursor, and OpenCode chat history.",
   "type": "module",
   "author": "Rocco (@rodabuilds)",
   "keywords": [
@@ -10,6 +10,7 @@
     "claude-code",
     "codex",
     "cursor",
+    "opencode",
     "ai",
     "search",
     "full-text-search",

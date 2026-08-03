@@ -6,7 +6,7 @@ This repository includes a portable Agent Skill for local session-memory search:
 .agents/skills/sift-memory/SKILL.md
 ```
 
-Use it when prior Claude Code, Codex, or Cursor chat/session history could help answer a question, recover a decision, debug a regression, or continue project work.
+Use it when prior Claude Code, Codex, Cursor, or OpenCode chat/session history could help answer a question, recover a decision, debug a regression, or continue project work.
 
 Core commands:
 
@@ -16,6 +16,7 @@ sift "<query>" --limit 10 --json
 sift "<query>" --tool claude --limit 10 --json
 sift "<query>" --tool codex --limit 10 --json
 sift "<query>" --tool cursor --limit 10 --json
+sift "<query>" --tool opencode --limit 10 --json
 sift show "<ref>" --json
 sift list --limit 10 --json
 ```
@@ -26,6 +27,6 @@ Privacy constraints:
 
 - Keep all `sift` usage local.
 - Do not send log contents or index data to remote services.
-- Do not write to Claude Code, Codex, or Cursor source logs/databases.
+- Do not write to Claude Code, Codex, Cursor, or OpenCode source logs/databases.
 - Follow only relevant result refs with `sift show` when surrounding context is needed.
 - Summarize only relevant findings; do not paste large raw logs.

@@ -12,15 +12,20 @@ export function discoverSources(roots = sourceRoots) {
     ...findFilesNamed(roots.cursorLinuxUser, 'state.vscdb'),
     ...findFilesNamed(roots.cursorWindowsUser, 'state.vscdb')
   ])];
+  const opencode = roots.opencodeDb && fs.existsSync(roots.opencodeDb)
+    ? [roots.opencodeDb]
+    : [];
 
   return {
     claude,
     codex,
     cursor: cursor.sort(),
+    opencode,
     files: [
       ...claude.map((file) => ({ file, tool: 'claude' })),
       ...codex.map((file) => ({ file, tool: 'codex' })),
-      ...cursor.map((file) => ({ file, tool: 'cursor' }))
+      ...cursor.map((file) => ({ file, tool: 'cursor' })),
+      ...opencode.map((file) => ({ file, tool: 'opencode' }))
     ]
   };
 }
