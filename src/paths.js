@@ -15,7 +15,8 @@ export const sourceRoots = {
   codexArchived: path.join(homeDir, '.codex', 'archived_sessions'),
   cursorMacUser: path.join(homeDir, 'Library', 'Application Support', 'Cursor', 'User'),
   cursorLinuxUser: path.join(homeDir, '.config', 'Cursor', 'User'),
-  cursorWindowsUser: process.env.APPDATA ? path.join(process.env.APPDATA, 'Cursor', 'User') : null
+  cursorWindowsUser: process.env.APPDATA ? path.join(process.env.APPDATA, 'Cursor', 'User') : null,
+  opencodeDb: opencodeDatabasePath()
 };
 
 export function ensureIndexDir() {
@@ -41,6 +42,16 @@ export function findFilesNamed(root, name) {
   const files = [];
   walk(root, files, (entry) => entry.isFile() && entry.name === name);
   return files.sort();
+}
+
+function opencodeDatabasePath() {
+  if (process.env.XDG_DATA_HOME) {
+    return path.join(process.env.XDG_DATA_HOME, 'opencode', 'opencode.db');
+  }
+  if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
+    return path.join(process.env.LOCALAPPDATA, 'opencode', 'opencode.db');
+  }
+  return path.join(homeDir, '.local', 'share', 'opencode', 'opencode.db');
 }
 
 function walk(dir, files, include) {

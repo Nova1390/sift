@@ -48,8 +48,8 @@ test('v4 index shards records and incrementally updates changed and deleted sour
   assert.equal(listSessions(loaded, { limit: 10 }).length, 2);
 
   const second = await buildIndex({ roots: env.roots, storage: env.storage });
-  assert.deepEqual(second.cacheStats.reused, { claude: 1, codex: 1, cursor: 0 });
-  assert.deepEqual(second.cacheStats.parsed, { claude: 0, codex: 0, cursor: 0 });
+  assert.deepEqual(second.cacheStats.reused, { claude: 1, codex: 1, cursor: 0, opencode: 0 });
+  assert.deepEqual(second.cacheStats.parsed, { claude: 0, codex: 0, cursor: 0, opencode: 0 });
 
   fs.appendFileSync(env.claudeFile, '\n{"timestamp":"2026-07-30T08:02:00.000Z","message":{"role":"user","content":"A newly appended marker"}}\n');
   const third = await buildIndex({ roots: env.roots, storage: env.storage });
@@ -92,7 +92,8 @@ test('v3 remains searchable and the next index run migrates it to v4', async () 
     stats: {
       claude: { sessions: 0, messages: 0 },
       codex: { sessions: 1, messages: 1 },
-      cursor: { sessions: 0, messages: 0 }
+      cursor: { sessions: 0, messages: 0 },
+      opencode: { sessions: 0, messages: 0 }
     },
     miniSearch: miniSearch.toJSON()
   });
@@ -157,6 +158,37 @@ test('Cursor shards are reparsed on every incremental run', {
   assert.equal(second.cacheStats.reused.cursor, 0);
 });
 
+test('OpenCode shards are reparsed on every incremental run', {
+  skip: Database ? false : 'better-sqlite3 is unavailable'
+}, async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sift-v4-opencode-'));
+  const opencodeFile = path.join(root, 'opencode', 'opencode.db');
+  fs.mkdirSync(path.dirname(opencodeFile), { recursive: true });
+  const db = new Database(opencodeFile);
+  db.exec(`
+    create table session (id text primary key, directory text);
+    create table message (id text primary key, session_id text, time_created integer, data text);
+    create table part (id text primary key, message_id text, session_id text, data text);
+  `);
+  db.prepare('insert into session (id, directory) values (?, ?)').run('session-1', '/tmp/opencode');
+  db.prepare('insert into message (id, session_id, time_created, data) values (?, ?, ?, ?)')
+    .run('message-1', 'session-1', 1785744000000, JSON.stringify({ role: 'user' }));
+  db.prepare('insert into part (id, message_id, session_id, data) values (?, ?, ?, ?)')
+    .run('part-1', 'message-1', 'session-1', JSON.stringify({ type: 'text', text: 'OpenCode refresh marker' }));
+  db.close();
+
+  const roots = emptyRoots(root);
+  roots.opencodeDb = opencodeFile;
+  const storage = createStoragePaths(path.join(root, '.sift'));
+  const first = await buildIndex({ full: true, roots, storage });
+  const second = await buildIndex({ roots, storage });
+
+  assert.equal(first.stats.opencode.messages, 1);
+  assert.equal(first.stats.opencode.sessions, 1);
+  assert.equal(second.cacheStats.parsed.opencode, 1);
+  assert.equal(second.cacheStats.reused.opencode, 0);
+});
+
 function createFixtureEnvironment() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sift-v4-test-'));
   const roots = emptyRoots(root);
@@ -183,6 +215,7 @@ function emptyRoots(root) {
     codexArchived: path.join(root, 'codex-archived'),
     cursorMacUser: path.join(root, 'cursor-mac'),
     cursorLinuxUser: path.join(root, 'cursor-linux'),
-    cursorWindowsUser: null
+    cursorWindowsUser: null,
+    opencodeDb: path.join(root, 'opencode', 'opencode.db')
   };
 }

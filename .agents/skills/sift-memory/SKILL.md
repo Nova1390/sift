@@ -1,12 +1,12 @@
 ---
 name: sift-memory
-description: Use this skill when an agent needs local historical context from AI coding assistant sessions, prior project conversations, debugging history, implementation decisions, or user asks to search Claude Code, Codex, or Cursor chat history. It teaches agents to use the local-only `sift` CLI for indexed full-text search across Claude Code, Codex, and Cursor logs without network calls.
-compatibility: Agent Skills-compatible clients including Codex, Claude Code, Cursor-compatible agents, and VS Code/GitHub Copilot agent mode. Requires Node.js 20+ and the local `sift` CLI or this repo's `node ./bin/sift.js`.
+description: Use this skill when an agent needs local historical context from AI coding assistant sessions, prior project conversations, debugging history, implementation decisions, or user asks to search Claude Code, Codex, Cursor, or OpenCode chat history. It teaches agents to use the local-only `sift` CLI for indexed full-text search across these local logs without network calls.
+compatibility: Agent Skills-compatible clients including Codex, Claude Code, Cursor-compatible agents, OpenCode, and VS Code/GitHub Copilot agent mode. Requires Node.js 20+ and the local `sift` CLI or this repo's `node ./bin/sift.js`.
 ---
 
 # Sift Memory
 
-Use `sift` as a local memory search layer for prior AI coding-assistant sessions. It reads only local Claude Code, Codex, and Cursor logs/databases and writes only its own index under `~/.sift/`.
+Use `sift` as a local memory search layer for prior AI coding-assistant sessions. It reads only local Claude Code, Codex, Cursor, and OpenCode logs/databases and writes only its own index under `~/.sift/`.
 
 ## Command Resolution
 
@@ -60,6 +60,7 @@ Filter by source when useful:
 sift "<query>" --tool codex --limit 10 --json
 sift "<query>" --tool claude --limit 10 --json
 sift "<query>" --tool cursor --limit 10 --json
+sift "<query>" --tool opencode --limit 10 --json
 ```
 
 Good queries are concrete: project names, command names, file names, bug symptoms, package names, decisions, or user phrasing. Prefer a few focused searches over one broad search.
@@ -103,5 +104,5 @@ Keep the workflow local and read-only for source logs:
 
 - Do not send `sift` results to remote services.
 - Do not add telemetry, sync, embeddings, or network calls.
-- Do not write to Claude Code, Codex, or Cursor source logs/databases.
+- Do not write to Claude Code, Codex, Cursor, or OpenCode source logs/databases.
 - Treat everything under `~/.sift/` as local private context.
